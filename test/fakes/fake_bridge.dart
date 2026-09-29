@@ -15,12 +15,21 @@ class FakeBridge implements PlatformBridge {
   final List<String> calls = <String>[];
   final StreamController<bool> _proximity = StreamController<bool>.broadcast();
 
+  /// Drives [launchTriggerStream] so a test can simulate the native launch
+  /// EventChannel delivering an event. Without this the stream is inert and the
+  /// dispatcher cannot be exercised at all.
+  final StreamController<Map<String, dynamic>> _launch =
+      StreamController<Map<String, dynamic>>.broadcast();
+
   bool canSchedule = true;
   bool nativeCallLogAccepts = true;
   PermissionStatus permissionStatus = PermissionStatus.assumeAllGranted;
 
   /// Set to fire a launch event when the alarm "fires".
   Map<String, dynamic>? pendingLaunch;
+
+  /// Simulates the native layer announcing a launch event.
+  void emitLaunch(Map<String, dynamic> event) => _launch.add(event);
 
   @override
   PlatformKind get kind => PlatformKind.headless;
@@ -130,12 +139,14 @@ class FakeBridge implements PlatformBridge {
       _record('openNotificationSettings');
 
   @override
-  Stream<Map<String, dynamic>> get launchTriggerStream =>
-      const Stream<Map<String, dynamic>>.empty();
+  Stream<Map<String, dynamic>> get launchTriggerStream => _launch.stream;
 
   @override
   Future<Map<String, dynamic>?> consumeLaunchIntent() async => pendingLaunch;
 
   @override
-  Future<void> dispose() async => _proximity.close();
+  Future<void> dispose() async {
+    await _proximity.close();
+    await _launch.close();
+  }
 }

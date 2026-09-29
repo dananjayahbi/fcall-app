@@ -14,8 +14,9 @@ import android.os.IBinder
 import android.util.Log
 import com.mobiletel.incomingcall.MainActivity
 import com.mobiletel.incomingcall.platform.CallSessionStore
+import com.mobiletel.incomingcall.platform.MainActivityAction
 import com.mobiletel.incomingcall.platform.PrefKeys
-import com.mobiletel.incomingcall.ringer.RingerController
+import com.mobiletel.incomingcall.ringer.RingerHub
 
 /**
  * Module 2 + 4 — the foreground service that owns the call once the alarm fires.
@@ -28,12 +29,10 @@ import com.mobiletel.incomingcall.ringer.RingerController
  */
 class IncomingCallService : Service() {
 
-    private lateinit var ringer: RingerController
     private var audioManager: AudioManager? = null
 
     override fun onCreate() {
         super.onCreate()
-        ringer = RingerController(this)
         createChannel()
     }
 
@@ -48,7 +47,7 @@ class IncomingCallService : Service() {
             ACTION_SILENCE -> {
                 // Module 4: a volume key mutes the ringer; the call screen stays.
                 Log.i(TAG, "Silenced by volume key")
-                ringer.stop()
+                RingerHub.stop()
             }
             else -> Log.w(TAG, "Unknown action: ${intent?.action}")
         }
@@ -75,7 +74,7 @@ class IncomingCallService : Service() {
         // Module 4/5: switch to the in-communication audio mode so the OS
         // treats the device as being on a call, then start the ringer.
         setVoiceMode(true)
-        ringer.start(vibrate)
+        RingerHub.start(this, vibrate)
 
         val locked = isDeviceLocked()
         Log.i(TAG, "Call from $name <$number> (locked=$locked)")
@@ -115,7 +114,7 @@ class IncomingCallService : Service() {
 
     private fun fullScreenIntentIntent(name: String, number: String): Intent {
         val intent = Intent(this, MainActivity::class.java).apply {
-            action = MainActivity.ACTION_SHOW_INCOMING_CALL
+            action = MainActivityAction.SHOW_INCOMING_CALL
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                 Intent.FLAG_ACTIVITY_CLEAR_TOP or
                 Intent.FLAG_ACTIVITY_SINGLE_TOP
@@ -167,7 +166,7 @@ class IncomingCallService : Service() {
     }
 
     private fun teardown() {
-        ringer.stop()
+        RingerHub.stop()
         setVoiceMode(false)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -181,7 +180,7 @@ class IncomingCallService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
-        ringer.stop()
+        RingerHub.stop()
         setVoiceMode(false)
         super.onDestroy()
     }

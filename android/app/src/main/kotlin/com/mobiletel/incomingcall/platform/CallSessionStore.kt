@@ -49,6 +49,20 @@ object CallSessionStore {
         }.getOrElse { emptyMap() }
     }
 
+    /**
+     * Reads the payload using the relay's own module context.
+     *
+     * [LaunchSignalRelay] is an `object` with no `Context` of its own, but the
+     * call payload is process-wide state, so reading it must not require every
+     * caller to thread a `Context` through. The application context is the
+     * correct one: the payload belongs to the app, not to an activity that may
+     * already have been destroyed.
+     */
+    fun readPayload(): Map<String, Any?> {
+        val app = LaunchSignalRelay.appContext ?: return emptyMap()
+        return readPayload(app)
+    }
+
     fun fireAt(context: Context): Long =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getLong(KEY_FIRE_AT, 0L)

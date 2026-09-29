@@ -11,7 +11,7 @@ import android.provider.Settings
 import android.util.Log
 import com.mobiletel.incomingcall.alarm.CallAlarmScheduler
 import com.mobiletel.incomingcall.calllog.CallLogWriter
-import com.mobiletel.incomingcall.ringer.RingerController
+import com.mobiletel.incomingcall.ringer.RingerHub
 import com.mobiletel.incomingcall.service.IncomingCallService
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
@@ -31,7 +31,6 @@ class AndroidBridgeImpl(
 ) : MethodChannel.MethodCallHandler {
 
     private val context: Context get() = activity.applicationContext
-    private val ringer = RingerController(context)
     private val callLogWriter = CallLogWriter(context)
     private val mainHandler = Handler(Looper.getMainLooper())
 
@@ -116,24 +115,27 @@ class AndroidBridgeImpl(
             }
 
             // --------------------------------------------------------------- ringer
+            // Routed through RingerHub so this and IncomingCallService drive the
+            // *same* ringer; two instances would leave one of them ringing after
+            // the call is answered.
             "startRinger" -> {
-                ringer.start(call.argument<Boolean>("vibrate") ?: true)
+                RingerHub.start(context, call.argument<Boolean>("vibrate") ?: true)
                 result.success(null)
             }
 
             "stopRinger" -> {
-                ringer.stop()
+                RingerHub.stop()
                 result.success(null)
             }
 
             "silenceRinger" -> {
-                ringer.stop()
+                RingerHub.stop()
                 stopIncomingService()
                 result.success(null)
             }
 
             "previewRinger" -> {
-                ringer.preview()
+                RingerHub.preview(context)
                 result.success(null)
             }
 
@@ -214,12 +216,25 @@ class AndroidBridgeImpl(
 
     private fun hasOverlayPermission(): Boolean = Settings.canDrawOverlays(context)
 
+    /**
+     * One-shot read of the launch intent.
+     *
+     * The `event` key is load-bearing: `HomePage` tests
+     * `launch['event'] == 'quickRing'` before arming the countdown, and
+     * `LaunchDispatcher` switches on the same string. This previously returned
+     * `launchSource`/`autoRing`, which matched nothing, so a quick-action cold
+     * start was silently dropped.
+     *
+     * A call intent is *not* handled here — the call is announced on the launch
+     * EventChannel instead, so a cold-started call reaches the ring screen even
+     * when this one-shot read is not made.
+     */
     private fun consumeLaunchIntent(): Map<String, Any?>? {
         val intent = activity.intent ?: return null
         if (intent.action != MainActivityAction.QUICK_RING) return null
         return mapOf(
-            PrefKeys.LAUNCH_SOURCE to "quick_action",
-            "autoRing" to true
+            "event" to LaunchSignalRelay.Event.QUICK_RING,
+            PrefKeys.LAUNCH_SOURCE to "quick_action"
         )
     }
 
@@ -269,8 +284,4 @@ class AndroidBridgeImpl(
     private companion object {
         const val TAG = "AndroidBridge"
     }
-}
-
-object MainActivityAction {
-    const val QUICK_RING = "com.mobiletel.incomingcall.action.QUICK_RING"
 }

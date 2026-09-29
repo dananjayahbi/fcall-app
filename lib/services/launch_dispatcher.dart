@@ -45,16 +45,16 @@ class LaunchDispatcher {
   }
 
   Future<void> dispatch(Map<String, dynamic> event) async {
-    final String kind = (event['event'] ?? event[keyEvent] ?? '') as String;
+    final String kind = _eventNameOf(event);
     switch (kind) {
       case eventVolumeKey:
         await _orchestrator.onVolumeKeyPressed();
 
       case eventCall:
         await _orchestrator.beginRinging(
-          name: (event[keyName] ?? '') as String,
-          number: (event[keyNumber] ?? '') as String,
-          simLabel: (event[keySimLabel] ?? 'SIM 1') as String,
+          name: _stringOf(event, keyName),
+          number: _stringOf(event, keyNumber),
+          simLabel: _stringOf(event, keySimLabel, fallback: defaultSimLabel),
         );
 
       case eventQuickRing:
@@ -68,12 +68,42 @@ class LaunchDispatcher {
     }
   }
 
+  /// Resolves the event name, tolerating the alternate key the native side has
+  /// used for it.
+  ///
+  /// The event discriminator is duplicated in Kotlin (`LaunchSignalRelay`) and
+  /// this class agrees on it only by convention — a mismatch is silent, it just
+  /// drops the event, and the symptom ("the phone rang but nothing appeared")
+  /// points nowhere near the cause. Reading both spellings turns that class of
+  /// bug into a log line instead of a mystery.
+  static String _eventNameOf(Map<String, dynamic> event) {
+    final Object? primary = event[keyEvent];
+    if (primary is String && primary.isNotEmpty) return primary;
+    final Object? alternate = event['type'];
+    if (alternate is String && alternate.isNotEmpty) return alternate;
+    return '';
+  }
+
+  /// Non-throwing read: a missing or wrongly-typed key must not abort a call.
+  static String _stringOf(
+    Map<String, dynamic> event,
+    String key, {
+    String fallback = '',
+  }) {
+    final Object? value = event[key];
+    if (value is String) return value;
+    if (value == null) return fallback;
+    return value.toString();
+  }
+
   /// The alarm payload uses different keys from the quick-action payload, so
   /// both shapes are normalised here rather than at each call site.
   static const String keyEvent = 'event';
   static const String keyName = 'name';
   static const String keyNumber = 'number';
   static const String keySimLabel = 'simLabel';
+
+  static const String defaultSimLabel = 'SIM 1';
 
   static const String eventVolumeKey = 'volumeKeyPressed';
   static const String eventCall = 'callIncoming';

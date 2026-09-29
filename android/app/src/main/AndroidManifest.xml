@@ -73,9 +73,14 @@
             </intent-filter>
         </activity>
 
-        <!-- Module 2: the exact-alarm entry point. -->
+        <!-- Module 2: the exact-alarm entry point.
+
+             This MUST name the same class `CallAlarmScheduler` puts in the
+             PendingIntent. An explicit Intent naming a component that is not
+             declared here is never delivered, so the alarm would fire into a
+             void and the ring screen would never appear. -->
         <receiver
-            android:name=".receiver.CallAlarmReceiverAlias"
+            android:name=".alarm.CallAlarmReceiver"
             android:exported="false"
             android:directBootAware="false">
             <intent-filter>
@@ -83,13 +88,19 @@
             </intent-filter>
         </receiver>
 
-        <!-- Launcher shortcut target. -->
+        <!-- Launcher shortcut target, and the reboot rescheduler.
+
+             `BOOT_COMPLETED` is the system action the platform actually
+             broadcasts; the previous custom `*.action.BOOT` was never sent by
+             anything, so a pending call was silently dropped across a reboot. -->
         <receiver
             android:name=".receiver.ActionReceiver"
             android:exported="true">
             <intent-filter>
                 <action android:name="com.mobiletel.incomingcall.action.QUICK_RING" />
-                <action android:name="com.mobiletel.incomingcall.action.BOOT" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
 

@@ -7,6 +7,7 @@ import android.view.KeyEvent
 import android.view.WindowManager
 import com.mobiletel.incomingcall.platform.AndroidBridgeImpl
 import com.mobiletel.incomingcall.platform.CallSessionStore
+import com.mobiletel.incomingcall.platform.LaunchSignalRelay
 import com.mobiletel.incomingcall.platform.MainActivityAction
 import com.mobiletel.incomingcall.platform.PrefKeys
 import com.mobiletel.incomingcall.platform.StorageChannelHandler
@@ -26,6 +27,9 @@ class MainActivity : FlutterActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         val messenger = flutterEngine.dartExecutor.binaryMessenger
+
+        // The relay reads the stored call payload, which is process-wide state.
+        LaunchSignalRelay.appContext = applicationContext
 
         proximity = ProximityController(this) { near ->
             // Runs on the sensor thread; hop to main before crossing the channel.
@@ -49,6 +53,21 @@ class MainActivity : FlutterActivity() {
                     eventSink = null
                 }
             })
+
+        // Module 2/3: the "a call is arriving" channel. This registration was
+        // missing entirely, so Dart's launchTriggerStream never produced a
+        // single event and the ring screen could not be shown.
+        EventChannel(messenger, CHANNEL_LAUNCH).setStreamHandler(
+            object : EventChannel.StreamHandler {
+                override fun onListen(arguments: Any?, sink: EventChannel.EventSink?) {
+                    LaunchSignalRelay.attach(sink)
+                }
+
+                override fun onCancel(arguments: Any?) {
+                    LaunchSignalRelay.detach()
+                }
+            }
+        )
     }
 
     /**
@@ -117,12 +136,15 @@ class MainActivity : FlutterActivity() {
             CallWindowController.applyImmersiveMode(this)
             return
         }
-        if (action == ACTION_SHOW_INCOMING_CALL) {
+        if (action == MainActivityAction.SHOW_INCOMING_CALL) {
             val payload = CallSessionStore.readPayload(this)
             if (payload.isNotEmpty()) {
                 CallWindowController.acquire(this, keepScreenOn = true)
             }
         }
+        // Hand the intent to Dart. Emitted *after* the window flags so the
+        // ring screen is already show-when-locked by the time it is built.
+        LaunchSignalRelay.handleActivityIntent(intent)
     }
 
     override fun onDestroy() {
@@ -138,7 +160,8 @@ class MainActivity : FlutterActivity() {
         private const val CHANNEL_BRIDGE = "com.mobiletel.incomingcall/bridge"
         private const val CHANNEL_PROXIMITY = "com.mobiletel.incomingcall/proximity"
         private const val CHANNEL_STORAGE = "com.mobiletel.incomingcall/storage"
-        const val ACTION_SHOW_INCOMING_CALL =
-            "com.mobiletel.incomingcall.action.SHOW_INCOMING_CALL"
+
+        /** Must match `_launchChannel` in `lib/services/platform/bridge_service.dart`. */
+        private const val CHANNEL_LAUNCH = "com.mobiletel.incomingcall/launch"
     }
 }

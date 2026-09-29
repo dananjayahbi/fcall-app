@@ -3,11 +3,12 @@ package com.mobiletel.incomingcall.receiver
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.util.Log
-import com.mobiletel.incomingcall.alarm.CallAlarmReceiver
 import com.mobiletel.incomingcall.alarm.CallAlarmScheduler
 import com.mobiletel.incomingcall.platform.CallSessionStore
 import com.mobiletel.incomingcall.platform.PrefKeys
+import com.mobiletel.incomingcall.service.IncomingCallService
 
 /**
  * Module 2 — the quick-trigger entry point and the reboot rescheduler.
@@ -53,20 +54,37 @@ class ActionReceiver : BroadcastReceiver() {
     private fun rearmAfterBoot(context: Context) {
         val fireAt = CallSessionStore.fireAt(context)
         if (fireAt <= 0L) return
+        val payload = CallSessionStore.readPayload(context)
+        if (payload.isEmpty()) return
         if (fireAt <= System.currentTimeMillis()) {
             // The trigger elapsed while the device was off — fire immediately
             // rather than dropping it, which is what a real call would do.
             Log.i(TAG, "Pending call elapsed during reboot; firing now")
-            val intent = Intent(context, CallAlarmReceiver::class.java).apply {
-                action = CallAlarmScheduler.ACTION_CALL_ALARM
-            }
-            context.sendBroadcast(intent)
+            startCallService(context)
             return
         }
-        val payload = CallSessionStore.readPayload(context)
-        if (payload.isEmpty()) return
         CallAlarmScheduler.schedule(context, fireAt, payload)
         Log.i(TAG, "Re-armed the pending call for $fireAt")
+    }
+
+    /**
+     * Starts the incoming-call service the way `CallAlarmReceiver` does.
+     *
+     * The `startForegroundService` branch matters: a plain `startService` from
+     * the background throws `IllegalStateException` from Android 8, and this
+     * receiver runs in the background by definition.
+     */
+    private fun startCallService(context: Context) {
+        val serviceIntent = Intent(context, IncomingCallService::class.java).apply {
+            action = IncomingCallService.ACTION_START
+        }
+        runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                context.startForegroundService(serviceIntent)
+            } else {
+                context.startService(serviceIntent)
+            }
+        }.onFailure { Log.e(TAG, "startIncomingCall failed: ${it.message}") }
     }
 
     companion object {

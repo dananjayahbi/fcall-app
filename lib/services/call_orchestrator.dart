@@ -83,6 +83,14 @@ class CallOrchestrator {
 
   // -------------------------------------------------------------- scheduling
   /// Module 2: arm the platform alarm for [trigger].
+  ///
+  /// Re-arming **replaces** the pending call rather than adding a second one.
+  /// A user who taps Quick trigger twice must get one call, not two minutes
+  /// apart. Today that only works by accident: the native `PendingIntent`
+  /// happens to reuse one request code, so the second registration overwrites
+  /// the first. Relying on a `PendingIntent` identity that is invisible from
+  /// Dart is a contract the test suite cannot check, so it is made explicit
+  /// here instead.
   Future<ScheduleResult> arm({
     required CallerProfile profile,
     required CallTrigger trigger,
@@ -91,6 +99,10 @@ class CallOrchestrator {
       return const ScheduleResult.failure('A call is already in progress.');
     }
     await persistProfile(profile);
+    if (isArmed) {
+      await _schedule.cancel();
+      _armedTrigger = null;
+    }
     final ScheduleResult result = await _schedule.schedule(
       trigger: trigger,
       payload: _payloadFor(profile),
