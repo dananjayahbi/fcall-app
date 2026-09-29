@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Window background shown while the process starts. Matches
+         AppColors.background (#0B0F14) so the cold-start path has no white
+         flash before Flutter's first frame. -->
+    <color name="launch_background">#0B0F14</color>
+</resources>

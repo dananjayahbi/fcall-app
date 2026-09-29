@@ -1,0 +1,120 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- ===== Phase 1.3 — permissions ======================= -->
+
+    <!-- Module 2: exact alarms that survive Doze -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.USE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+
+    <!-- Module 3: draw over the keyguard -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <uses-permission android:name="android.permission.DISABLE_KEYGUARD" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.EXPAND_STATUS_BAR" />
+
+    <!-- Module 4: ringtone + haptics -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO"
+        tools:ignore="ProtectedPermissions" />
+
+    <!-- Module 6: native call history -->
+    <uses-permission android:name="android.permission.WRITE_CALL_LOG" />
+    <uses-permission android:name="android.permission.READ_CALL_LOG" />
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+
+    <!-- Module 5: the proximity sensor is required hardware for this app. -->
+    <uses-feature
+        android:name="android.hardware.sensor.proximity"
+        android:required="true" />
+
+    <application
+        android:label="Incoming Call"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:showWhenLocked="true"
+        android:turnScreenOn="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize"
+            android:windowShowWallpaper="true">
+            <meta-data
+                android:name="io.flutter.embedding.android.NormalTheme"
+                android:resource="@style/NormalTheme" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+            <!-- Module 2 fallback: the launcher shortcut / quick tile.
+                 Long-pressing the icon and tapping "Ring me in 10s" starts a
+                 countdown without opening the app first. -->
+            <intent-filter>
+                <action android:name="com.mobiletel.incomingcall.action.QUICK_RING" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- Module 2: the exact-alarm entry point. -->
+        <receiver
+            android:name=".receiver.CallAlarmReceiverAlias"
+            android:exported="false"
+            android:directBootAware="false">
+            <intent-filter>
+                <action android:name="com.mobiletel.incomingcall.action.CALL_ALARM" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Launcher shortcut target. -->
+        <receiver
+            android:name=".receiver.ActionReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.mobiletel.incomingcall.action.QUICK_RING" />
+                <action android:name="com.mobiletel.incomingcall.action.BOOT" />
+            </intent-filter>
+        </receiver>
+
+        <!-- Module 2/4: a foreground service keeps the ringer alive when the
+             screen locks and HyperOS backgrounds the activity. -->
+        <service
+            android:name=".service.IncomingCallService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse"
+            android:stopWithTask="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Shows an incoming call with ringer,
+                    haptics and a proximity-driven display wake lock." />
+        </service>
+
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+    </application>
+
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.PROCESS_TEXT" />
+            <data android:mimeType="text/plain" />
+        </intent>
+    </queries>
+</manifest>

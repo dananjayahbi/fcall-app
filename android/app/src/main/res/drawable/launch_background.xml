@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Splash screen.
+
+  The stock Flutter template flashes @android:color/white, which is a jarring
+  white flash on the way to a deliberately dark app - and on a Redmi this is
+  visible for a noticeable moment, because the app is usually cold-started by
+  the alarm receiver. The window background is therefore the app's own dark
+  surface, with the launcher mark centred on it.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@color/launch_background" />
+
+    <item>
+        <bitmap
+            android:gravity="center"
+            android:src="@mipmap/ic_launcher" />
+    </item>
+</layer-list>

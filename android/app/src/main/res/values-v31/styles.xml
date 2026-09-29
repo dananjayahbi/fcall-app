@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 12+ splash screen.
+
+  From API 31 the system ignores `windowBackground`/`launch_background` and
+  draws its own splash from these two attributes instead, so the themed version
+  has to be defined or the app shows the default white plate. The background is
+  the app's dark surface; the icon is the adaptive foreground, which the system
+  masks and (on API 33+) may additionally theme.
+
+  values-v31/ only - the attributes do not exist on older releases, and a
+  styles.xml in values/ referencing them fails the resource link.
+-->
+<resources>
+    <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">@drawable/launch_background</item>
+        <item name="android:windowSplashScreenBackground">@color/launch_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
+        <item name="android:windowSplashScreenIconBackgroundColor">@color/ic_launcher_background</item>
+    </style>
+
+    <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">
+        <item name="android:windowBackground">?android:colorBackground</item>
+    </style>
+</resources>

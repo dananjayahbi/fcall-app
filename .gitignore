@@ -1,0 +1,59 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# --- Signing secrets (NEVER commit) -------------------------------------------
+# The release keystore and its passwords. The upload key is effectively
+# permanent: Android will not update an installed app signed with a different
+# key, so losing these means every future release needs a full uninstall.
+# Back them up outside the repo instead of committing them.
+/android/key.properties
+/android/app/*.jks
+/android/app/*.keystore
+*.jks
+*.keystore
+
+# Logo generator scratch output (the committed icons are the source of truth).
+/tool/logo/out/

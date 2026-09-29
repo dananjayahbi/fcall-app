@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Adaptive launcher icon (API 26+).
+
+  The launcher takes this 108dp layer, crops it to whatever mask the OEM theme
+  uses (circle on Pixel, squircle/pill on HyperOS), and draws `background` behind
+  `foreground`. Both layers must fill the entire canvas - anything short of that
+  shows the wallpaper through the corners.
+
+  The glyph sits inside the centre 72dp because the outer 18dp on each side is
+  the guaranteed-crop zone. See tool/logo/generate_icons.py.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+    <monochrome android:drawable="@mipmap/ic_launcher_monochrome" />
+</adaptive-icon>
