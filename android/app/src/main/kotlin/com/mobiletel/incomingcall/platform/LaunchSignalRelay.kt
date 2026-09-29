@@ -100,16 +100,30 @@ object LaunchSignalRelay {
     fun handleActivityIntent(intent: Intent?) {
         when (intent?.action) {
             MainActivityAction.SHOW_INCOMING_CALL -> {
-                val payload = CallSessionStore.readPayload()
+                // Resolve through the same path the service used, so Dart is told
+                // the identical caller. Reading the single legacy slot here would
+                // show one name while the service rings another.
+                val scheduleId =
+                    intent.getStringExtra(
+                        com.mobiletel.incomingcall.alarm.CallAlarmSchedulerV2.EXTRA_SCHEDULE_ID
+                    ).orEmpty()
+                val call = appContext?.let { CallPayloadResolver.resolve(it, scheduleId) }
+                    ?: CallPayloadResolver.Resolved(
+                        scheduleId = scheduleId,
+                        name = "Unknown",
+                        number = "",
+                        simLabel = "SIM 1",
+                        vibrate = true,
+                    )
                 emit(
                     Event.CALL_INCOMING,
                     mapOf(
-                        PrefKeys.NAME to CallSessionStore.stringOf(payload, PrefKeys.NAME, "Unknown"),
-                        PrefKeys.NUMBER to CallSessionStore.stringOf(payload, PrefKeys.NUMBER),
-                        PrefKeys.SIM_LABEL to
-                            CallSessionStore.stringOf(payload, PrefKeys.SIM_LABEL, "SIM 1"),
-                        PrefKeys.VIBRATE to CallSessionStore.boolOf(payload, PrefKeys.VIBRATE, true),
+                        PrefKeys.NAME to call.name,
+                        PrefKeys.NUMBER to call.number,
+                        PrefKeys.SIM_LABEL to call.simLabel,
+                        PrefKeys.VIBRATE to call.vibrate,
                         PrefKeys.LAUNCH_SOURCE to "alarm",
+                        "scheduleId" to scheduleId,
                     )
                 )
             }

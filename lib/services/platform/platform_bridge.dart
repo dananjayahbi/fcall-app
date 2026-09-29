@@ -56,6 +56,31 @@ abstract class PlatformBridge {
 
   Future<void> cancelExactAlarm();
 
+  // ------------------------------------------------------- multiple schedules
+  /// Register one armed call under its own [id].
+  ///
+  /// Separate from [scheduleExactAlarm] because the single-alarm form has no id
+  /// and therefore can only ever hold one call: every registration resolved to
+  /// the same `PendingIntent` and silently replaced the previous one. Ids are
+  /// mandatory here so each call gets an independent alarm.
+  Future<void> scheduleCall({
+    required String id,
+    required int triggerAtMs,
+    required Map<String, dynamic> payload,
+  });
+
+  /// Cancel exactly one armed call. [cancelExactAlarm] clears the legacy slot.
+  Future<void> cancelCall({required String id});
+
+  /// Every armed call the platform still holds, newest state included.
+  ///
+  /// Read from native rather than from Dart storage so the timeline cannot
+  /// display a call the platform has already dropped — the two going out of
+  /// sync is what makes a schedule list lie.
+  Future<List<Map<String, dynamic>>> listScheduledCalls();
+
+  Future<void> clearScheduledCalls();
+
   // ------------------------------------------------------------------ call UI
   /// Present the incoming-call takeover: full-screen intent when locked,
   /// heads-up notification when unlocked.

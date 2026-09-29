@@ -3,12 +3,36 @@ enum CallTriggerKind {
   /// A relative delay counted down from the moment of scheduling.
   countdown,
 
+  /// A relative delay the user typed in units (e.g. "2 hours"), built by
+  /// [CallTrigger.relative].
+  ///
+  /// Kept distinct from [countdown] so the timeline can label a hand-typed
+  /// delay differently from a preset, and so the unit the user chose survives
+  /// to be shown. It is *not* just a countdown with a different label: the
+  /// pairing (unit, value) is what the user entered, and re-rendering it in
+  /// seconds would lose that.
+  relative,
+
   /// A wall-clock date + time picked by the user.
   exactDateTime,
 
   /// Fired by a launcher shortcut / quick-settings tile. Always ~10s.
   quickAction,
 }
+
+/// The unit a [CallTriggerKind.relative] delay was entered in.
+enum RelativeUnit {
+  minutes,
+  hours;
+
+  String get label => this == RelativeUnit.minutes ? 'Minutes' : 'Hours';
+  String get shortLabel => this == RelativeUnit.minutes ? 'min' : 'hr';
+
+  Duration toDuration(int value) => this == RelativeUnit.minutes
+      ? Duration(minutes: value)
+      : Duration(hours: value);
+}
+
 
 /// Module 1 trigger configuration.
 ///
@@ -21,6 +45,8 @@ class CallTrigger {
     required this.kind,
     required this.fireAtMs,
     this.presetLabel,
+    this.relativeUnit,
+    this.relativeValue,
   });
 
   /// Quick preset / custom relative delay.
@@ -43,6 +69,27 @@ class CallTrigger {
     fireAtMs: dateTime.millisecondsSinceEpoch,
   );
 
+  /// A delay the user entered as (value, unit) — "2 hours", "45 minutes".
+  ///
+  /// [value] is clamped to at least 1: a zero delay would fire instantly, which
+  /// is indistinguishable from a broken button, and a negative one is a schedule
+  /// that can never fire. The clamp is silent rather than an error because the
+  /// caller's job is to schedule the call, not to lecture about the input.
+  factory CallTrigger.relative({
+    required int value,
+    required RelativeUnit unit,
+    DateTime? now,
+  }) {
+    final int safe = value < 1 ? 1 : value;
+    return CallTrigger._(
+      kind: CallTriggerKind.relative,
+      fireAtMs:
+          (now ?? DateTime.now()).add(unit.toDuration(safe)).millisecondsSinceEpoch,
+      relativeUnit: unit,
+      relativeValue: safe,
+    );
+  }
+
   /// Module 2's fallback quick trigger: a 10 second countdown.
   factory CallTrigger.quickAction({DateTime? now}) => CallTrigger._(
     kind: CallTriggerKind.quickAction,
@@ -54,6 +101,18 @@ class CallTrigger {
   final CallTriggerKind kind;
   final int fireAtMs;
   final String? presetLabel;
+
+  /// Set only for [CallTriggerKind.relative], so the editor can restore the
+  /// unit the user chose instead of defaulting back to minutes.
+  final RelativeUnit? relativeUnit;
+  final int? relativeValue;
+
+  /// "2 hr" / "45 min" — used by the timeline to describe the delay the way
+  /// the user entered it rather than as a raw seconds count.
+  String? get relativeLabel {
+    if (relativeUnit == null || relativeValue == null) return null;
+    return '$relativeValue ${relativeUnit!.shortLabel}';
+  }
 
   DateTime get fireAt => DateTime.fromMillisecondsSinceEpoch(fireAtMs);
 
@@ -70,9 +129,12 @@ class CallTrigger {
     'kind': kind.name,
     'fireAtMs': fireAtMs,
     'presetLabel': presetLabel,
+    'relativeUnit': relativeUnit?.name,
+    'relativeValue': relativeValue,
   };
 
   factory CallTrigger.fromJson(Map<String, dynamic> json) {
+    final String? unitName = json['relativeUnit'] as String?;
     return CallTrigger._(
       kind: CallTriggerKind.values.firstWhere(
         (CallTriggerKind k) => k.name == json['kind'],
@@ -80,6 +142,13 @@ class CallTrigger {
       ),
       fireAtMs: (json['fireAtMs'] as num).toInt(),
       presetLabel: json['presetLabel'] as String?,
+      // Unknown unit names degrade to minutes rather than throwing: a payload
+      // written by a newer build must not crash an older one.
+      relativeUnit: RelativeUnit.values.firstWhere(
+        (RelativeUnit u) => u.name == unitName,
+        orElse: () => RelativeUnit.minutes,
+      ),
+      relativeValue: (json['relativeValue'] as num?)?.toInt(),
     );
   }
 }
@@ -92,6 +161,10 @@ abstract final class CallTriggerPresets {
     CallTriggerOption('1m', Duration(minutes: 1)),
     CallTriggerOption('5m', Duration(minutes: 5)),
   ];
+
+  /// Sensible starting values for the minute/hour editor.
+  static const int defaultMinutes = 10;
+  static const int defaultHours = 1;
 }
 
 class CallTriggerOption {

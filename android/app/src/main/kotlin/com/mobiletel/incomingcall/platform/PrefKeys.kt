@@ -18,6 +18,9 @@ object PrefKeys {
     const val RINGER_SILENT = "ringerSilent"
     const val LAUNCH_SOURCE = "launchSource"
 
+    /** Absolute fire time, persisted per schedule so a reboot can re-arm it. */
+    const val FIRE_AT = "fireAt"
+
     /** Extras key used to hand the payload to the service. */
     const val EXTRA_PAYLOAD = "com.mobiletel.incomingcall.PAYLOAD"
 }

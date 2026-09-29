@@ -17,22 +17,34 @@ import com.mobiletel.incomingcall.service.IncomingCallService
 class CallAlarmReceiver : BroadcastReceiver() {
 
     override fun onReceive(context: Context, intent: Intent) {
-        Log.i(TAG, "Alarm fired: ${intent.action}")
-        val serviceIntent = Intent(context, IncomingCallService::class.java).apply {
-            action = IncomingCallService.ACTION_START
-        }
-        runCatching {
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                context.startForegroundService(serviceIntent)
-            } else {
-                context.startService(serviceIntent)
-            }
-        }.onFailure { error ->
-            Log.e(TAG, "Could not start the incoming-call service: ${error.message}")
-        }
+        val scheduleId = intent.getStringExtra(CallAlarmSchedulerV2.EXTRA_SCHEDULE_ID).orEmpty()
+        Log.i(TAG, "Alarm fired: ${intent.action} (id='$scheduleId')")
+        dispatch(context, scheduleId)
     }
 
-    private companion object {
-        const val TAG = "CallAlarmReceiver"
+    companion object {
+        private const val TAG = "CallAlarmReceiver"
+
+        /**
+         * Starts the call service for [scheduleId].
+         *
+         * In a companion rather than an instance method so the reboot rescheduler
+         * can fire an elapsed call without having to construct a receiver.
+         */
+        fun dispatch(context: Context, scheduleId: String) {
+            val serviceIntent = Intent(context, IncomingCallService::class.java).apply {
+                action = IncomingCallService.ACTION_START
+                putExtra(CallAlarmSchedulerV2.EXTRA_SCHEDULE_ID, scheduleId)
+            }
+            runCatching {
+                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                    context.startForegroundService(serviceIntent)
+                } else {
+                    context.startService(serviceIntent)
+                }
+            }.onFailure { error ->
+                Log.e(TAG, "Could not start the incoming-call service: ${error.message}")
+            }
+        }
     }
 }

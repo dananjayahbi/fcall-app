@@ -6,6 +6,11 @@ import '../../../core/theme/app_spacing.dart';
 import '../../../widgets/section_header.dart';
 
 /// Module 1 / Phase 4.1: the 15s / 30s / 1m / 5m preset row.
+///
+/// Two custom options rather than one, because they express genuinely
+/// different intents: "2 hours from now" counts down from the moment it is
+/// armed, while "at 14:30" is fixed on the clock. Collapsing them into a single
+/// "Custom" chip would force the user to open a date picker to say "in 2 hours".
 class DelayPresetRow extends StatelessWidget {
   const DelayPresetRow({
     required this.selected,
@@ -14,9 +19,12 @@ class DelayPresetRow extends StatelessWidget {
     super.key,
     this.customActive = false,
     this.customLabel = 'Custom',
+    this.onCustomRelative,
+    this.relativeActive = false,
+    this.relativeLabel = 'In minutes / hours',
   });
 
-  /// The preset duration currently chosen, or `null` for the custom option.
+  /// The preset duration currently chosen, or `null` for a custom option.
   final Duration? selected;
   final ValueChanged<Duration> onSelect;
   final VoidCallback onCustom;
@@ -24,6 +32,11 @@ class DelayPresetRow extends StatelessWidget {
   /// True when the exact-time picker is the active choice.
   final bool customActive;
   final String customLabel;
+
+  /// The hand-entered minutes/hours option.
+  final VoidCallback? onCustomRelative;
+  final bool relativeActive;
+  final String relativeLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -43,6 +56,13 @@ class DelayPresetRow extends StatelessWidget {
                 onTap: () => onSelect(option.duration),
               );
             }),
+            if (onCustomRelative != null)
+              _PresetChip(
+                label: relativeLabel,
+                selected: relativeActive,
+                onTap: onCustomRelative!,
+                icon: Icons.timelapse_outlined,
+              ),
             _PresetChip(
               label: customLabel,
               selected: customActive,

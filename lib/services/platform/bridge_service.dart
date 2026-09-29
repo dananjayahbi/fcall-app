@@ -110,6 +110,25 @@ class HeadlessBridge implements PlatformBridge {
   Future<void> cancelExactAlarm() async => _record('cancelExactAlarm');
 
   @override
+  Future<void> scheduleCall({
+    required String id,
+    required int triggerAtMs,
+    required Map<String, dynamic> payload,
+  }) async => _record('scheduleCall:$id');
+
+  @override
+  Future<void> cancelCall({required String id}) async => _record('cancelCall:$id');
+
+  @override
+  Future<List<Map<String, dynamic>>> listScheduledCalls() async {
+    _record('listScheduledCalls');
+    return const <Map<String, dynamic>>[];
+  }
+
+  @override
+  Future<void> clearScheduledCalls() async => _record('clearScheduledCalls');
+
+  @override
   Future<void> launchIncomingCall({
     required Map<String, dynamic> payload,
   }) async => _record('launchIncomingCall');

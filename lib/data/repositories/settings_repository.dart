@@ -8,6 +8,7 @@ class AppSettings {
     this.useSystemRingtone = true,
     this.screenOnWhileRinging = true,
     this.logCalls = true,
+    this.randomContact = false,
   });
 
   factory AppSettings.fromJson(Map<String, dynamic> json) {
@@ -16,6 +17,7 @@ class AppSettings {
       useSystemRingtone: (json['useSystemRingtone'] as bool?) ?? true,
       screenOnWhileRinging: (json['screenOnWhileRinging'] as bool?) ?? true,
       logCalls: (json['logCalls'] as bool?) ?? true,
+      randomContact: (json['randomContact'] as bool?) ?? false,
     );
   }
 
@@ -26,17 +28,26 @@ class AppSettings {
   /// Module 6: write the record into the native call log when a call ends.
   final bool logCalls;
 
+  /// Leave the caller to chance: when on, each schedule picks a different
+  /// random contact from the book instead of using the typed profile.
+  ///
+  /// Defaults to off. A saved contact arriving unannounced is the whole point
+  /// of the app, so this must be something the user deliberately turns on.
+  final bool randomContact;
+
   AppSettings copyWith({
     bool? vibrate,
     bool? useSystemRingtone,
     bool? screenOnWhileRinging,
     bool? logCalls,
+    bool? randomContact,
   }) {
     return AppSettings(
       vibrate: vibrate ?? this.vibrate,
       useSystemRingtone: useSystemRingtone ?? this.useSystemRingtone,
       screenOnWhileRinging: screenOnWhileRinging ?? this.screenOnWhileRinging,
       logCalls: logCalls ?? this.logCalls,
+      randomContact: randomContact ?? this.randomContact,
     );
   }
 
@@ -45,6 +56,7 @@ class AppSettings {
     'useSystemRingtone': useSystemRingtone,
     'screenOnWhileRinging': screenOnWhileRinging,
     'logCalls': logCalls,
+    'randomContact': randomContact,
   };
 }
 

@@ -41,6 +41,9 @@ class _IncomingCallAppState extends State<IncomingCallApp> {
       callerRepository: widget.scope.callerRepository,
       settingsRepository: widget.scope.settingsRepository,
       callLogService: widget.scope.callLogService,
+      contactRepository: widget.scope.contactRepository,
+      contactRandomiser: widget.scope.contactRandomiser,
+      scheduleBook: widget.scope.scheduleBook,
       child: MaterialApp(
         title: 'Incoming Call',
         debugShowCheckedModeBanner: false,

@@ -96,7 +96,36 @@ class MethodChannelBridge implements PlatformBridge {
 
   @override
   Future<void> cancelExactAlarm() async => _invoke<void>('cancelExactAlarm');
+  // ------------------------------------------------------- multiple schedules
+  @override
+  Future<void> scheduleCall({
+    required String id,
+    required int triggerAtMs,
+    required Map<String, dynamic> payload,
+  }) {
+    return _invoke<void>('scheduleCall', <String, dynamic>{
+      'id': id,
+      'triggerAtMs': triggerAtMs,
+      'payload': payload,
+    });
+  }
 
+  @override
+  Future<void> cancelCall({required String id}) =>
+      _invoke<void>('cancelCall', <String, dynamic>{'id': id});
+
+  @override
+  Future<List<Map<String, dynamic>>> listScheduledCalls() async {
+    final List<Object?>? raw = await _invoke<List<Object?>>('listScheduledCalls');
+    if (raw == null) return const <Map<String, dynamic>>[];
+    return raw
+        .whereType<Map<Object?, Object?>>()
+        .map(Map<String, dynamic>.from)
+        .toList(growable: false);
+  }
+
+  @override
+  Future<void> clearScheduledCalls() => _invoke<void>('clearScheduledCalls');
   // ------------------------------------------------------------------ call UI
   @override
   Future<void> launchIncomingCall({

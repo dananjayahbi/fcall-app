@@ -93,6 +93,63 @@ class WebPreviewBridge implements PlatformBridge {
     _scheduledAlarmTimer = null;
   }
 
+  // ------------------------------------------------------- multiple schedules
+  // A Map keyed by id, not a single Timer: the browser preview has to model
+  // the same independence the native AlarmManager provides, or the timeline
+  // would look correct here and collapse to one call on a device.
+  final Map<String, Timer> _callTimers = <String, Timer>{};
+  final Map<String, Map<String, dynamic>> _callPayloads =
+      <String, Map<String, dynamic>>{};
+
+  @override
+  Future<void> scheduleCall({
+    required String id,
+    required int triggerAtMs,
+    required Map<String, dynamic> payload,
+  }) async {
+    _record('scheduleCall:$id');
+    _callTimers.remove(id)?.cancel();
+    _callPayloads[id] = payload;
+    final Duration delay = DateTime.fromMillisecondsSinceEpoch(
+      triggerAtMs,
+    ).difference(DateTime.now());
+    _callTimers[id] = Timer(delay.isNegative ? Duration.zero : delay, () {
+      _callTimers.remove(id);
+      final Map<String, dynamic>? stored = _callPayloads.remove(id);
+      if (stored != null) {
+        unawaited(launchIncomingCall(payload: stored));
+      }
+    });
+  }
+
+  @override
+  Future<void> cancelCall({required String id}) async {
+    _record('cancelCall:$id');
+    _callTimers.remove(id)?.cancel();
+    _callPayloads.remove(id);
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> listScheduledCalls() async {
+    _record('listScheduledCalls');
+    return _callPayloads.entries
+        .map((MapEntry<String, Map<String, dynamic>> e) => <String, dynamic>{
+          ...e.value,
+          'id': e.key,
+        })
+        .toList(growable: false);
+  }
+
+  @override
+  Future<void> clearScheduledCalls() async {
+    _record('clearScheduledCalls');
+    for (final Timer timer in _callTimers.values) {
+      timer.cancel();
+    }
+    _callTimers.clear();
+    _callPayloads.clear();
+  }
+
   // ------------------------------------------------------------------ call UI
   @override
   Future<void> launchIncomingCall({

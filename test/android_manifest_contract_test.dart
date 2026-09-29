@@ -221,4 +221,107 @@ void main() {
       );
     });
   });
+
+  group('multiple concurrent schedules', () {
+    test('each schedule gets its own request code', () {
+      // The defect this guards: one hard-coded request code meant every
+      // PendingIntent was the same object, so arming a second call replaced the
+      // first and the timeline lied about what was pending.
+      final String scheduler = File(
+        'android/app/src/main/kotlin/com/mobiletel/incomingcall/alarm/CallAlarmSchedulerV2.kt',
+      ).readAsStringSync();
+
+      expect(
+        scheduler,
+        contains('fun requestCodeFor(scheduleId: String)'),
+        reason: 'Alarms must be keyed by schedule id, not one shared code.',
+      );
+      expect(
+        RegExp(r'requestCodeFor\(').allMatches(scheduler).length,
+        greaterThanOrEqualTo(3),
+        reason:
+            'The per-id request code must actually be used for registering AND '
+            'cancelling, not merely declared.',
+      );
+    });
+
+    test('the schedule id reaches the receiver and the service', () {
+      // Without the id travelling end-to-end, every call reads the same
+      // payload and two armed calls ring the same caller.
+      final String extra =
+          'com.mobiletel.incomingcall.alarm.CallAlarmSchedulerV2.EXTRA_SCHEDULE_ID';
+      final List<String> carriers = <String>[
+        'android/app/src/main/kotlin/com/mobiletel/incomingcall/alarm/CallAlarmReceiver.kt',
+        'android/app/src/main/kotlin/com/mobiletel/incomingcall/service/IncomingCallService.kt',
+        'android/app/src/main/kotlin/com/mobiletel/incomingcall/platform/LaunchSignalRelay.kt',
+      ];
+      for (final String path in carriers) {
+        expect(
+          File(path).readAsStringSync(),
+          contains('EXTRA_SCHEDULE_ID'),
+          reason: '$path must carry the schedule id through to the ring screen.',
+        );
+      }
+      expect(extra, isNotEmpty);
+    });
+
+    test('the service resolves a per-schedule payload, not the legacy slot', () {
+      final String service = File(
+        'android/app/src/main/kotlin/com/mobiletel/incomingcall/service/IncomingCallService.kt',
+      ).readAsStringSync();
+      expect(
+        service,
+        contains('CallPayloadResolver.resolve'),
+        reason:
+            'The service must resolve by schedule id; reading the single legacy '
+            'slot would ring the wrong caller for every call but the last.',
+      );
+    });
+
+    test('the Dart bridge method names exist on both sides', () {
+      const List<String> methods = <String>[
+        'scheduleCall',
+        'cancelCall',
+        'listScheduledCalls',
+        'clearScheduledCalls',
+      ];
+      final String dart = File(
+        'lib/services/platform/method_channel_bridge.dart',
+      ).readAsStringSync();
+      final String kotlin = File(
+        'android/app/src/main/kotlin/com/mobiletel/incomingcall/platform/AndroidBridgeImpl.kt',
+      ).readAsStringSync();
+
+      for (final String method in methods) {
+        expect(dart, contains("'$method'"), reason: 'Dart is missing $method.');
+        expect(kotlin, contains("\"$method\""), reason: 'Kotlin is missing $method.');
+      }
+    });
+
+    test('reboot re-arms every pending call, not just one', () {
+      final String receiver = File(
+        'android/app/src/main/kotlin/com/mobiletel/incomingcall/receiver/ActionReceiver.kt',
+      ).readAsStringSync();
+      expect(
+        receiver,
+        contains('CallAlarmSchedulerV2.rearmAll'),
+        reason:
+            'A reboot drops every alarm. Re-arming only the first would silently '
+            'lose the rest, which is the defect the single-slot store caused.',
+      );
+    });
+
+    test('a delivered schedule is removed so a reboot cannot replay it', () {
+      final String service = File(
+        'android/app/src/main/kotlin/com/mobiletel/incomingcall/service/IncomingCallService.kt',
+      ).readAsStringSync();
+      expect(
+        service,
+        contains('ScheduleStore.remove'),
+        reason:
+            'A call that has already rung must not be re-armed on the next '
+            'reboot, or the user gets a call they already declined.',
+      );
+    });
+  });
 }

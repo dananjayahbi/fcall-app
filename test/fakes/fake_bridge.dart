@@ -66,7 +66,49 @@ class FakeBridge implements PlatformBridge {
 
   @override
   Future<void> cancelExactAlarm() async => _record('cancelExactAlarm');
+  // ------------------------------------------------------- multiple schedules
+  // Modelled as real state rather than recorded calls, because the timeline is
+  // only testable if "what does the platform still hold" has an honest answer.
+  final Map<String, Map<String, dynamic>> _armedCalls =
+      <String, Map<String, dynamic>>{};
 
+  @override
+  Future<void> scheduleCall({
+    required String id,
+    required int triggerAtMs,
+    required Map<String, dynamic> payload,
+  }) async {
+    _record('scheduleCall:$id');
+    _armedCalls[id] = <String, dynamic>{
+      ...payload,
+      'id': id,
+      'fireAtMs': triggerAtMs,
+    };
+  }
+
+  @override
+  Future<void> cancelCall({required String id}) async {
+    _record('cancelCall:$id');
+    _armedCalls.remove(id);
+  }
+
+  @override
+  Future<List<Map<String, dynamic>>> listScheduledCalls() async {
+    _record('listScheduledCalls');
+    return _armedCalls.values
+        .map(Map<String, dynamic>.from)
+        .toList(growable: false);
+  }
+
+  @override
+  Future<void> clearScheduledCalls() async {
+    _record('clearScheduledCalls');
+    _armedCalls.clear();
+  }
+
+  /// Direct view of what the platform holds, for assertions.
+  List<Map<String, dynamic>> get armedCalls =>
+      _armedCalls.values.map(Map<String, dynamic>.from).toList(growable: false);
   @override
   Future<void> launchIncomingCall({
     required Map<String, dynamic> payload,

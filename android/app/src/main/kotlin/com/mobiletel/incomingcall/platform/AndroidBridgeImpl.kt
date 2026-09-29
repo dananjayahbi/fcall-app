@@ -10,6 +10,7 @@ import android.os.Looper
 import android.provider.Settings
 import android.util.Log
 import com.mobiletel.incomingcall.alarm.CallAlarmScheduler
+import com.mobiletel.incomingcall.alarm.CallAlarmSchedulerV2
 import com.mobiletel.incomingcall.calllog.CallLogWriter
 import com.mobiletel.incomingcall.ringer.RingerHub
 import com.mobiletel.incomingcall.service.IncomingCallService
@@ -70,6 +71,46 @@ class AndroidBridgeImpl(
 
             "openExactAlarmSettings" -> {
                 openSettings(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM))
+                result.success(null)
+            }
+
+            // ------------------------------------------------- multi scheduling
+            // Each armed call gets its own id and therefore its own alarm. The
+            // single-alarm methods above are kept for the quick-action path,
+            // which is inherently one-shot.
+            "scheduleCall" -> {
+                val id = call.argument<String>("id").orEmpty()
+                val triggerAtMs = (call.argument<Number>("triggerAtMs"))?.toLong() ?: 0L
+                @Suppress("UNCHECKED_CAST")
+                val payload = (call.argument<Map<String, Any?>>("payload") ?: emptyMap())
+                if (id.isEmpty()) {
+                    result.error("bad_id", "A scheduled call needs a non-empty id", null)
+                    return
+                }
+                if (triggerAtMs <= 0L) {
+                    result.error("bad_trigger", "triggerAtMs must be a positive epoch value", null)
+                    return
+                }
+                CallAlarmSchedulerV2.schedule(context, id, triggerAtMs, payload)
+                result.success(null)
+            }
+
+            "cancelCall" -> {
+                val id = call.argument<String>("id").orEmpty()
+                if (id.isNotEmpty()) CallAlarmSchedulerV2.cancel(context, id)
+                result.success(null)
+            }
+
+            "listScheduledCalls" -> result.success(
+                ScheduleStore.readAll(context).map { ScheduleStore.toMap(it) }
+            )
+
+            "clearScheduledCalls" -> {
+                for (entry in ScheduleStore.readAll(context)) {
+                    entry.optString("id").takeIf { it.isNotEmpty() }
+                        ?.let { CallAlarmSchedulerV2.cancel(context, it) }
+                }
+                ScheduleStore.clear(context)
                 result.success(null)
             }
 

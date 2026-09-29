@@ -16,11 +16,16 @@ class CallerFormCard extends StatelessWidget {
     required this.onChanged,
     required this.onSimLabelChanged,
     super.key,
+    this.showTitle = false,
   });
 
   final CallerProfile profile;
   final TextEditingController nameController;
   final TextEditingController numberController;
+
+  /// Off by default because the caller-source card above already owns the
+  /// "Caller" heading. Left on, the screen shows two identical headings.
+  final bool showTitle;
 
   /// Fires on every keystroke so the avatar preview and derived profile stay
   /// in sync with the text fields rather than a stale cached copy.
@@ -34,7 +39,12 @@ class CallerFormCard extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: <Widget>[
-        const SectionHeader('Caller'),
+        // No `SectionHeader` here: `CallerSourceCard` sits directly above and
+        // already labels this group. Two stacked "Caller" headings read as a
+        // rendering fault and give the screen no sense of which card is which.
+        SectionHeader(
+          showTitle ? 'Caller' : 'Or type a number',
+        ),
         GlassCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

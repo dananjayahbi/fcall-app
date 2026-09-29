@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 
 import '../data/repositories/caller_repository.dart';
 import '../data/repositories/call_log_store.dart';
+import '../data/repositories/contact_repository.dart';
 import '../data/repositories/settings_repository.dart';
 import '../data/storage/key_value_store.dart';
 import '../data/storage/storage_factory.dart';
@@ -10,6 +11,7 @@ import '../services/call_orchestrator.dart';
 import '../services/launch_dispatcher.dart';
 import '../services/platform/bridge_service.dart';
 import '../services/platform/platform_bridge.dart';
+import '../services/scheduling/schedule_book.dart';
 
 /// Dependency container.
 ///
@@ -30,6 +32,9 @@ class AppScope extends InheritedWidget {
     required this.callerRepository,
     required this.settingsRepository,
     required this.callLogService,
+    required this.contactRepository,
+    required this.contactRandomiser,
+    required this.scheduleBook,
     required super.child,
     super.key,
   });
@@ -40,6 +45,15 @@ class AppScope extends InheritedWidget {
   final CallerRepository callerRepository;
   final SettingsRepository settingsRepository;
   final NativeCallLogService callLogService;
+
+  /// The saved contact book (task: contact picker).
+  final ContactRepository contactRepository;
+
+  /// Picks a random contact, used by the "surprise me" toggle.
+  final ContactRandomiser contactRandomiser;
+
+  /// The armed-call set shared by the home screen and the timeline.
+  final ScheduleBook scheduleBook;
 
   static AppScope of(BuildContext context) {
     final AppScope? scope = context
@@ -77,6 +91,7 @@ abstract final class AppScopeFactory {
   }) {
     final CallerRepository callerRepository = CallerRepository(store);
     final SettingsRepository settingsRepository = SettingsRepository(store);
+    final ContactRepository contactRepository = ContactRepository(store);
     final NativeCallLogService callLogService = NativeCallLogService(
       dao: CallLogStore(store),
       bridge: bridge,
@@ -94,6 +109,9 @@ abstract final class AppScopeFactory {
       callerRepository: callerRepository,
       settingsRepository: settingsRepository,
       callLogService: callLogService,
+      contactRepository: contactRepository,
+      contactRandomiser: ContactRandomiser(contactRepository),
+      scheduleBook: ScheduleBook(bridge: bridge),
       child: const SizedBox.shrink(),
     );
   }

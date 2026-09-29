@@ -13,9 +13,11 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import com.mobiletel.incomingcall.MainActivity
-import com.mobiletel.incomingcall.platform.CallSessionStore
+import com.mobiletel.incomingcall.alarm.CallAlarmSchedulerV2
+import com.mobiletel.incomingcall.platform.CallPayloadResolver
 import com.mobiletel.incomingcall.platform.MainActivityAction
 import com.mobiletel.incomingcall.platform.PrefKeys
+import com.mobiletel.incomingcall.platform.ScheduleStore
 import com.mobiletel.incomingcall.ringer.RingerHub
 
 /**
@@ -38,7 +40,9 @@ class IncomingCallService : Service() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
-            ACTION_START -> handleStart()
+            ACTION_START -> handleStart(
+                intent.getStringExtra(CallAlarmSchedulerV2.EXTRA_SCHEDULE_ID).orEmpty()
+            )
             ACTION_STOP -> {
                 Log.i(TAG, "Stop requested")
                 teardown()
@@ -54,11 +58,16 @@ class IncomingCallService : Service() {
         return START_STICKY
     }
 
-    private fun handleStart() {
-        val payload = CallSessionStore.readPayload(this)
-        val name = CallSessionStore.stringOf(payload, PrefKeys.NAME, "Unknown")
-        val number = CallSessionStore.stringOf(payload, PrefKeys.NUMBER)
-        val vibrate = CallSessionStore.boolOf(payload, PrefKeys.VIBRATE, true)
+    private fun handleStart(scheduleId: String) {
+        val call = CallPayloadResolver.resolve(this, scheduleId)
+        val name = call.name
+        val number = call.number
+
+        // The schedule has been delivered; drop it so a reboot cannot re-arm a
+        // call the user has already answered or declined.
+        if (scheduleId.isNotEmpty()) {
+            ScheduleStore.remove(this, scheduleId)
+        }
 
         val notification = buildNotification(name, number)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -74,13 +83,13 @@ class IncomingCallService : Service() {
         // Module 4/5: switch to the in-communication audio mode so the OS
         // treats the device as being on a call, then start the ringer.
         setVoiceMode(true)
-        RingerHub.start(this, vibrate)
+        RingerHub.start(this, call.vibrate)
 
         val locked = isDeviceLocked()
         Log.i(TAG, "Call from $name <$number> (locked=$locked)")
 
         if (locked) {
-            startActivity(fullScreenIntentIntent(name, number))
+            startActivity(fullScreenIntentIntent(name, number, scheduleId))
         }
         // When unlocked, the heads-up notification below is the presentation.
         // Posting it in both cases would stack two surfaces on the lock screen.
@@ -96,7 +105,7 @@ class IncomingCallService : Service() {
         val fullScreen = PendingIntent.getActivity(
             this,
             REQUEST_FULL_SCREEN,
-            fullScreenIntentIntent(name, number),
+            fullScreenIntentIntent(name, number, ""),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         return builder
@@ -112,7 +121,7 @@ class IncomingCallService : Service() {
             .build()
     }
 
-    private fun fullScreenIntentIntent(name: String, number: String): Intent {
+    private fun fullScreenIntentIntent(name: String, number: String, scheduleId: String): Intent {
         val intent = Intent(this, MainActivity::class.java).apply {
             action = MainActivityAction.SHOW_INCOMING_CALL
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or
@@ -121,6 +130,7 @@ class IncomingCallService : Service() {
             putExtra(PrefKeys.NAME, name)
             putExtra(PrefKeys.NUMBER, number)
             putExtra(PrefKeys.LAUNCH_SOURCE, "alarm")
+            putExtra(CallAlarmSchedulerV2.EXTRA_SCHEDULE_ID, scheduleId)
         }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             // Required from Android 14: a full-screen intent is only used for
