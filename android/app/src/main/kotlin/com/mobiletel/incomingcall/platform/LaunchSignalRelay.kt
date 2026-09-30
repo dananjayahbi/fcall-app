@@ -100,13 +100,24 @@ object LaunchSignalRelay {
     fun handleActivityIntent(intent: Intent?) {
         when (intent?.action) {
             MainActivityAction.SHOW_INCOMING_CALL -> {
-                // Resolve through the same path the service used, so Dart is told
-                // the identical caller. Reading the single legacy slot here would
-                // show one name while the service rings another.
                 val scheduleId =
                     intent.getStringExtra(
                         com.mobiletel.incomingcall.alarm.CallAlarmSchedulerV2.EXTRA_SCHEDULE_ID
                     ).orEmpty()
+
+                // The intent's own extras are the most authoritative source:
+                // they were placed there by the service that is ringing *this*
+                // call, so they cannot be stale or already consumed the way a
+                // persisted store can be. They are preferred over a store read.
+                val fromIntent = readCaller(intent)
+                if (fromIntent != null) {
+                    emit(Event.CALL_INCOMING, fromIntent)
+                    return
+                }
+
+                // Fall back to a store lookup for the case where the extras
+                // were stripped (e.g. a restored PendingIntent), then to an
+                // explicit unknown so the ring screen still appears.
                 val call = appContext?.let { CallPayloadResolver.resolve(it, scheduleId) }
                     ?: CallPayloadResolver.Resolved(
                         scheduleId = scheduleId,
@@ -130,5 +141,26 @@ object LaunchSignalRelay {
 
             MainActivityAction.QUICK_RING -> emit(Event.QUICK_RING)
         }
+    }
+
+    /**
+     * Reads the caller from the intent's extras, or `null` when they are absent.
+     *
+     * Returns `null` rather than a blank name so the caller can distinguish "the
+     * intent carried no caller" from "the caller's name is genuinely empty" —
+     * only the former should fall through to a store lookup.
+     */
+    private fun readCaller(intent: Intent): Map<String, Any?>? {
+        val name = intent.getStringExtra(PrefKeys.NAME)
+        val number = intent.getStringExtra(PrefKeys.NUMBER)
+        if (name == null && number == null) return null
+        return mapOf(
+            PrefKeys.NAME to name.orEmpty(),
+            PrefKeys.NUMBER to number.orEmpty(),
+            PrefKeys.SIM_LABEL to intent.getStringExtra(PrefKeys.SIM_LABEL).orEmpty()
+                .ifBlank { "SIM 1" },
+            PrefKeys.VIBRATE to intent.getBooleanExtra(PrefKeys.VIBRATE, true),
+            PrefKeys.LAUNCH_SOURCE to "alarm",
+        )
     }
 }

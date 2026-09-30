@@ -51,9 +51,22 @@ class LaunchDispatcher {
         await _orchestrator.onVolumeKeyPressed();
 
       case eventCall:
+        final String name = _stringOf(event, keyName);
+        final String number = _stringOf(event, keyNumber);
+        if (name.trim().isEmpty) {
+          // Logged rather than rendered silently. A missing name is a payload
+          // that failed to survive the trip from the schedule to the ring
+          // screen, and the only way to find where it was lost is this line —
+          // the screen itself can only show a generic fallback.
+          AppLogger.instance.warn(
+            'launch-dispatch',
+            'callIncoming carried no name (number="$number", '
+            'schedule=${event['scheduleId']})',
+          );
+        }
         await _orchestrator.beginRinging(
-          name: _stringOf(event, keyName),
-          number: _stringOf(event, keyNumber),
+          name: name,
+          number: number,
           simLabel: _stringOf(event, keySimLabel, fallback: defaultSimLabel),
         );
 

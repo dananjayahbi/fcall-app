@@ -14,6 +14,7 @@ import android.os.IBinder
 import android.util.Log
 import com.mobiletel.incomingcall.MainActivity
 import com.mobiletel.incomingcall.alarm.CallAlarmSchedulerV2
+import com.mobiletel.incomingcall.platform.ActiveCallStore
 import com.mobiletel.incomingcall.platform.CallPayloadResolver
 import com.mobiletel.incomingcall.platform.MainActivityAction
 import com.mobiletel.incomingcall.platform.PrefKeys
@@ -63,13 +64,28 @@ class IncomingCallService : Service() {
         val name = call.name
         val number = call.number
 
-        // The schedule has been delivered; drop it so a reboot cannot re-arm a
-        // call the user has already answered or declined.
+        // Move the payload into the active-call slot *before* removing the
+        // schedule. The full-screen intent fired below re-reads the payload by
+        // id (see LaunchSignalRelay), and deleting first left that second
+        // reader with nothing — which is why every saved contact rang as
+        // "Unknown" on the ring screen while the notification showed the name.
         if (scheduleId.isNotEmpty()) {
+            ActiveCallStore.put(
+                this,
+                scheduleId,
+                mapOf(
+                    PrefKeys.NAME to call.name,
+                    PrefKeys.NUMBER to call.number,
+                    PrefKeys.SIM_LABEL to call.simLabel,
+                    PrefKeys.VIBRATE to call.vibrate,
+                    "scheduleId" to scheduleId,
+                )
+            )
+            // Consumed: a reboot must not replay a call already ringing.
             ScheduleStore.remove(this, scheduleId)
         }
 
-        val notification = buildNotification(name, number)
+        val notification = buildNotification(name, number, scheduleId)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             startForeground(
                 NOTIFICATION_ID,
@@ -95,7 +111,16 @@ class IncomingCallService : Service() {
         // Posting it in both cases would stack two surfaces on the lock screen.
     }
 
-    private fun buildNotification(name: String, number: String): Notification {
+    /**
+     * The heads-up / lock-screen notification.
+     *
+     * [scheduleId] must be the real id, not an empty string: when the device is
+     * unlocked the notification *is* the presentation, and tapping it opens the
+     * same ring screen. An empty id there meant Dart had no way to identify the
+     * call, so the screen fell back to "Unknown" on exactly the path the user
+     * takes on an unlocked handset.
+     */
+    private fun buildNotification(name: String, number: String, scheduleId: String): Notification {
         val builder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             Notification.Builder(this, CHANNEL_ID)
         } else {
@@ -105,7 +130,7 @@ class IncomingCallService : Service() {
         val fullScreen = PendingIntent.getActivity(
             this,
             REQUEST_FULL_SCREEN,
-            fullScreenIntentIntent(name, number, ""),
+            fullScreenIntentIntent(name, number, scheduleId),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
         return builder
@@ -178,6 +203,9 @@ class IncomingCallService : Service() {
     private fun teardown() {
         RingerHub.stop()
         setVoiceMode(false)
+        // The call is over: release the payload so a later call cannot be
+        // resolved against this one's details.
+        ActiveCallStore.clear(this)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
             stopForeground(STOP_FOREGROUND_REMOVE)
         } else {
@@ -192,6 +220,7 @@ class IncomingCallService : Service() {
     override fun onDestroy() {
         RingerHub.stop()
         setVoiceMode(false)
+        ActiveCallStore.clear(this)
         super.onDestroy()
     }
 
